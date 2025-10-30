@@ -1,0 +1,252 @@
+import { useState, useEffect } from 'react';
+import { Plus, ListTodo, Loader2 } from 'lucide-react';
+import { Button } from './components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
+import { TaskItem } from './components/TaskItem';
+import { TaskDialog } from './components/TaskDialog';
+import { DeleteTaskDialog } from './components/DeleteTaskDialog';
+import { Task, getTasks, createTask, updateTask, deleteTask } from './lib/api';
+import { toast } from 'sonner@2.0.3';
+import { Toaster } from './components/ui/sonner';
+
+export default function App() {
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const loadTasks = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getTasks();
+      setTasks(data);
+    } catch (error) {
+      toast.error('Failed to load tasks');
+      console.error('Failed to load tasks:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateTask = async (taskData: {
+    title: string;
+    description: string;
+    status: 'todo' | 'in-progress' | 'completed';
+  }) => {
+    try {
+      const newTask = await createTask(taskData);
+      setTasks([newTask, ...tasks]);
+      toast.success('Task created successfully');
+    } catch (error) {
+      toast.error('Failed to create task');
+      throw error;
+    }
+  };
+
+  const handleUpdateTask = async (taskData: {
+    title: string;
+    description: string;
+    status: 'todo' | 'in-progress' | 'completed';
+  }) => {
+    if (!selectedTask) return;
+
+    try {
+      const updatedTask = await updateTask(selectedTask.id, taskData);
+      setTasks(tasks.map(t => (t.id === updatedTask.id ? updatedTask : t)));
+      toast.success('Task updated successfully');
+    } catch (error) {
+      toast.error('Failed to update task');
+      throw error;
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!taskToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      await deleteTask(taskToDelete.id);
+      setTasks(tasks.filter(t => t.id !== taskToDelete.id));
+      toast.success('Task deleted successfully');
+      setIsDeleteDialogOpen(false);
+      setTaskToDelete(null);
+    } catch (error) {
+      toast.error('Failed to delete task');
+      console.error('Failed to delete task:', error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openCreateDialog = () => {
+    setSelectedTask(null);
+    setIsTaskDialogOpen(true);
+  };
+
+  const openEditDialog = (task: Task) => {
+    setSelectedTask(task);
+    setIsTaskDialogOpen(true);
+  };
+
+  const openDeleteDialog = (task: Task) => {
+    setTaskToDelete(task);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const filterTasks = (status?: string) => {
+    if (!status || status === 'all') return tasks;
+    return tasks.filter(task => task.status === status);
+  };
+
+  const getTaskCount = (status?: string) => {
+    return filterTasks(status).length;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="container max-w-4xl mx-auto py-8 px-4">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary rounded-lg">
+                <ListTodo className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1>Task Manager</h1>
+                <p className="text-muted-foreground">
+                  Organize and track your tasks efficiently
+                </p>
+              </div>
+            </div>
+            <Button onClick={openCreateDialog} size="lg">
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="all">
+              All <span className="ml-1 text-xs">({getTaskCount('all')})</span>
+            </TabsTrigger>
+            <TabsTrigger value="todo">
+              To Do <span className="ml-1 text-xs">({getTaskCount('todo')})</span>
+            </TabsTrigger>
+            <TabsTrigger value="in-progress">
+              In Progress <span className="ml-1 text-xs">({getTaskCount('in-progress')})</span>
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed <span className="ml-1 text-xs">({getTaskCount('completed')})</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all" className="space-y-3">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : filterTasks('all').length === 0 ? (
+              <div className="text-center py-12">
+                <ListTodo className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">No tasks yet</p>
+                <Button onClick={openCreateDialog}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create your first task
+                </Button>
+              </div>
+            ) : (
+              filterTasks('all').map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="todo" className="space-y-3">
+            {filterTasks('todo').length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No tasks to do</p>
+              </div>
+            ) : (
+              filterTasks('todo').map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="in-progress" className="space-y-3">
+            {filterTasks('in-progress').length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No tasks in progress</p>
+              </div>
+            ) : (
+              filterTasks('in-progress').map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="completed" className="space-y-3">
+            {filterTasks('completed').length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No completed tasks</p>
+              </div>
+            ) : (
+              filterTasks('completed').map(task => (
+                <TaskItem
+                  key={task.id}
+                  task={task}
+                  onEdit={openEditDialog}
+                  onDelete={openDeleteDialog}
+                />
+              ))
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* Dialogs */}
+        <TaskDialog
+          open={isTaskDialogOpen}
+          onOpenChange={setIsTaskDialogOpen}
+          task={selectedTask}
+          onSubmit={selectedTask ? handleUpdateTask : handleCreateTask}
+        />
+
+        <DeleteTaskDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          task={taskToDelete}
+          onConfirm={handleDeleteTask}
+          isDeleting={isDeleting}
+        />
+
+        <Toaster />
+      </div>
+    </div>
+  );
+}
