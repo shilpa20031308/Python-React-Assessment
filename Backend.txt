@@ -1,0 +1,222 @@
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Progress } from './ui/progress';
+import { Badge } from './ui/badge';
+import { Alert, AlertDescription } from './ui/alert';
+import { PlayCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CommentAPITester, type TestResult } from '../supabase/functions/server/tests';
+
+export function TestRunner() {
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<TestResult[]>([]);
+  const [progress, setProgress] = useState(0);
+
+  const runTests = async () => {
+    setRunning(true);
+    setResults([]);
+    setProgress(0);
+
+    const tester = new CommentAPITester();
+    
+    // Run tests and capture results
+    const testResults = await tester.runAllTests();
+    
+    setResults(testResults);
+    setProgress(100);
+    setRunning(false);
+  };
+
+  const passedCount = results.filter(r => r.passed).length;
+  const failedCount = results.filter(r => !r.passed).length;
+  const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
+  const successRate = results.length > 0 ? (passedCount / results.length) * 100 : 0;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PlayCircle className="w-5 h-5" />
+            API Test Runner
+          </CardTitle>
+          <CardDescription>
+            Automated tests for all comment CRUD operations
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button 
+            onClick={runTests} 
+            disabled={running}
+            className="w-full"
+            size="lg"
+          >
+            <PlayCircle className="w-5 h-5 mr-2" />
+            {running ? 'Running Tests...' : 'Run All Tests'}
+          </Button>
+
+          {running && (
+            <div className="space-y-2">
+              <Progress value={progress} />
+              <p className="text-sm text-center text-gray-500">Running automated tests...</p>
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Total Tests</p>
+                <p className="text-2xl">{results.length}</p>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <p className="text-sm text-green-600 mb-1">Passed</p>
+                <p className="text-2xl text-green-700">{passedCount}</p>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <p className="text-sm text-red-600 mb-1">Failed</p>
+                <p className="text-2xl text-red-700">{failedCount}</p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <p className="text-sm text-blue-600 mb-1">Success Rate</p>
+                <p className="text-2xl text-blue-700">{successRate.toFixed(0)}%</p>
+              </div>
+            </div>
+          )}
+
+          {results.length > 0 && (
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Total Duration</span>
+                </div>
+                <span className="text-sm">{totalDuration.toFixed(2)}ms</span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {results.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Test Results</CardTitle>
+            <CardDescription>
+              Detailed results for each test case
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {results.map((result, index) => (
+                <div
+                  key={index}
+                  className={`p-4 rounded-lg border-l-4 ${
+                    result.passed
+                      ? 'bg-green-50 border-green-500'
+                      : 'bg-red-50 border-red-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1">
+                      {result.passed ? (
+                        <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className={`${result.passed ? 'text-green-900' : 'text-red-900'}`}>
+                          {result.name}
+                        </p>
+                        {result.error && (
+                          <p className="text-sm text-red-700 mt-1 font-mono bg-red-100 p-2 rounded">
+                            {result.error}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={result.passed ? 'default' : 'destructive'}>
+                      {result.duration.toFixed(2)}ms
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Test Coverage</CardTitle>
+          <CardDescription>
+            Comprehensive testing of all API endpoints
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Health check endpoint verification</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Task creation and retrieval (GET, POST)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Comment CRUD operations (GET, POST, PUT, DELETE)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Input validation and error handling</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>404 errors for non-existent resources</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Multiple comment creation and ordering</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <div>
+                <p>Timestamp updates (createdAt, updatedAt)</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {failedCount === 0 && results.length > 0 && (
+        <Alert className="bg-green-50 text-green-900 border-green-200">
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>
+            All tests passed! Your Comment API is working perfectly. 
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {failedCount > 0 && (
+        <Alert variant="destructive">
+          <XCircle className="h-4 w-4" />
+          <AlertDescription>
+            {failedCount} test{failedCount > 1 ? 's' : ''} failed. Please check the error details above and review your API implementation.
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
